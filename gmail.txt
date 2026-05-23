@@ -1,0 +1,1048 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "=label:INBOX is:unread -category:promotions -category:social newer_than:7d"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "b5554821-4726-4fc1-85f9-f87cb53e0935",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        448,
+        -176
+      ],
+      "id": "b8bf056b-8158-452d-9096-162feb8f1c00",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 1,
+        "simple": false,
+        "filters": {
+          "q": "label:INBOX is:unread -category:promotions -category:social newer_than:7d"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        -176
+      ],
+      "id": "d825d829-9d67-4685-9583-64cc600fe8d5",
+      "name": "Get many messages",
+      "webhookId": "ece42177-609a-4ebc-9ec1-7a6b9b94ba02",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtenemos el texto que devolvió la IA\n// Usamos $input.item para evitar el error de \"items not found\"\nconst aiRawText = $input.item.json.content.parts[0].text;\n\n// 2. Limpiamos las etiquetas markdown (```json) para dejar solo el texto JSON puro\nconst cleanJson = aiRawText.replace(/```json|```/g, '').trim();\n\n// 3. Convertimos el texto a Objeto y le pegamos el ID del email original\ntry {\n  const parsedData = JSON.parse(cleanJson);\n  \n  // AQUÍ ESTÁ LA CLAVE:\n  // Recuperamos el ID del correo original directamente desde el nodo \"Gmail Trigger\"\n  // (Si tu primer nodo tiene otro nombre, cambia 'Gmail Trigger' por ese nombre)\n  const emailId = $('Gmail Trigger').item.json.id;\n\n  return {\n    ...parsedData,\n    emailId: emailId \n  };\n  \n} catch (error) {\n  // Si la IA devolvió algo que no es JSON, avisamos para que no se rompa todo\n  return { \n      error: \"La IA no devolvió un JSON válido\", \n      rawResponse: aiRawText \n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -176
+      ],
+      "id": "2b279f15-10ac-4856-b36e-34fb7fcac73e",
+      "name": "Limpiar Reply"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-robotics-er-1.5-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-robotics-er-1.5-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Actúa como un asistente de gestión de correo inteligente.\n\nAnaliza el siguiente correo y responde ÚNICAMENTE con un objeto JSON válido.\n\nEstructura estricta del JSON:\n{\n  \"suggestedHeader\": \"Título ultra-corto (2-5 palabras).\",\n  \"summary\": \"Resumen en una frase.\",\n  \"type\": \"Updates\", // OBLIGATORIO. Solo puede ser: \"Personal\", \"Newsletter\" o \"Updates\".\n  \"needsReply\": false,\n  \"replySubject\": \"Asunto para respuesta (o vacío).\",\n  \"suggestedReply\": \"Borrador de respuesta (o vacío).\",\n\n  // SECCIÓN DE PRIORIDAD\n  \"priorityScore\": 0, // Escala del 1 al 10. (1 = Spam/Informativo, 5 = Normal, 10 = Urgente/Crítico).\n  \"priorityReason\": \"Justificación muy breve de la puntuación.\",\n\n  // SECCIÓN DE EVENTOS\n  \"isEvent\": false, // Pon true si detectas una fecha y hora concreta para una cita, reunión, vuelo o entrega.\n  \"eventDetails\": {\n    \"title\": \"Título claro para el calendario (ej: 'Cena con Juan' o 'Vuelo IB3402'). Si no es evento, pon null.\",\n    \"startDate\": \"YYYY-MM-DDTHH:mm:ss\", // Formato ISO estricto. Asume el año actual o próximo futuro.\n    \"endDate\": \"YYYY-MM-DDTHH:mm:ss\", // Calcula una duración lógica (ej: 1 hora para reuniones).\n    \"location\": \"Lugar físico o enlace (o vacío).\",\n    \"description\": \"Detalles extra (o vacío).\"\n  }\n}\n\nCRITERIOS PARA EL CAMPO \"type\":\n- \"Personal\": Correos escritos por humanos, dirigidos directamente a ti, que esperan lectura directa o respuesta.\n- \"Newsletter\": Suscripciones, boletines informativos, resúmenes de noticias, marketing.\n- \"Updates\": Notificaciones automáticas de sistemas (ej. alertas de seguridad de Google, recibos de compra, confirmaciones de envío, actualizaciones de software o redes sociales).\n\nCRITERIOS PARA EL SCORE DE PRIORIDAD (1-10):\n- 9-10: Urgencias absolutas, problemas críticos, citas inminentes o correos de clientes/contactos VIP que exigen acción inmediata.\n- 7-8: Correos importantes que requieren respuesta o acción a corto plazo, confirmaciones de reuniones.\n- 4-6: Interacciones normales, facturas (Updates importantes), notificaciones de trabajo estándar sin urgencia.\n- 1-3: Newsletters, promociones, publicidad, avisos automáticos de lectura rápida.\n\n---\nCORREO A ANALIZAR:\nAsunto: {{ $json.subject }}\nRemitente: {{ $json.from }}\nCuerpo: {{ $json.text }}\nFecha del correo (para contexto temporal): {{ DateTime.fromMillis(Number($json.internalDate)).toFormat('yyyy-MM-dd HH:mm') }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        -176
+      ],
+      "id": "9aa85684-b812-464a-8a2b-7b63a3ed867b",
+      "name": "Resumir con Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "76mDWU7J5UnkWVf1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.emailId }}",
+        "labelIds": [
+          "Label_2024650128417731307"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1696,
+        -432
+      ],
+      "id": "19218845-823a-456c-9caf-4c753085a729",
+      "name": "Ruta Newsletter",
+      "webhookId": "19db4b5b-3783-44da-96bb-8c6d7cf1491e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.emailId }}",
+        "labelIds": [
+          "Label_1394446556801161505"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1696,
+        -176
+      ],
+      "id": "ae2953f7-d153-4cf4-a277-fc6f7956485d",
+      "name": "Ruta personal",
+      "webhookId": "31b0ff22-1055-47a7-a746-7bc28ba2930f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        -432
+      ],
+      "id": "3b0bde6b-3636-4dd5-949b-c4035d72d363",
+      "name": "Marcar newsletter leída",
+      "webhookId": "f7706ef7-d021-423b-b75c-e04c15ef5660",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        -176
+      ],
+      "id": "efea7a36-b027-40de-bbdf-192591c022c9",
+      "name": "Marcar personal leído",
+      "webhookId": "403a500c-d0e2-46fc-a3cc-d7b6bd76e807",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "8579831555",
+        "text": "={{ $('Limpiar Reply').item.json.summary }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2368,
+        -432
+      ],
+      "id": "6c5784a8-db30-42b9-9658-e93acb2ea597",
+      "name": "Notificar Newsletter",
+      "webhookId": "ffef1ab9-3b0d-4076-a195-5215fcb7232a",
+      "credentials": {
+        "telegramApi": {
+          "id": "nmJMAqHvDrqbQKps",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "8579831555",
+        "text": "={{ $('Limpiar Reply').item.json.summary }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2368,
+        -240
+      ],
+      "id": "621285c2-acf3-42b1-a354-d8577234e5a0",
+      "name": "Notificar Personal",
+      "webhookId": "ffef1ab9-3b0d-4076-a195-5215fcb7232a",
+      "credentials": {
+        "telegramApi": {
+          "id": "nmJMAqHvDrqbQKps",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $('Limpiar Reply').item.json.replySubject }}",
+        "message": "={{ $('Limpiar Reply').item.json.suggestedReply }}",
+        "options": {
+          "sendTo": "={{ $('Get many messages').item.json.headers.from }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2816,
+        -272
+      ],
+      "id": "32ff582b-9b1a-4a2b-821c-c959d49a9675",
+      "name": "Create a draft",
+      "webhookId": "99907e40-1257-4880-9dec-a2e4f496a78c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f8bce191-e7ec-4dfd-9108-f7a984b26111",
+              "leftValue": "={{ $('Limpiar Reply').item.json.needsReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2592,
+        -176
+      ],
+      "id": "e2630388-48ff-41e8-9e5d-5529dedd4f79",
+      "name": "Needs Reply"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a448e89a-c783-4fe0-9854-d1052312d4a6",
+              "leftValue": "={{ $('Limpiar Reply').item.json.isEvent }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2816,
+        -80
+      ],
+      "id": "d8f41dff-a129-4aa5-9982-4eaf3a335efe",
+      "name": "Is Event"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "topgonzalosepulveda@gmail.com",
+          "mode": "list",
+          "cachedResultName": "topgonzalosepulveda@gmail.com"
+        },
+        "start": "={{ $('Limpiar Reply').item.json.eventDetails.startDate }}",
+        "end": "={{ $('Limpiar Reply').item.json.eventDetails.endDate }}",
+        "additionalFields": {
+          "summary": "={{ $('Limpiar Reply').item.json.eventDetails.description }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        3040,
+        -80
+      ],
+      "id": "6e8e110e-ba23-427e-8cd2-3d53f83deeb1",
+      "name": "Create an event1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4xur0jqM0P7W2Yfg",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "topgonzalosepulveda@gmail.com",
+          "mode": "list",
+          "cachedResultName": "topgonzalosepulveda@gmail.com"
+        },
+        "start": "={{ $('Limpiar Reply').item.json.eventDetails.startDate }}",
+        "end": "={{ $('Limpiar Reply').item.json.eventDetails.endDate }}",
+        "additionalFields": {
+          "summary": "={{ $('Limpiar Reply').item.json.eventDetails.description }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        3264,
+        -272
+      ],
+      "id": "d02a7b7c-72dd-480e-98c6-f7d45004c92b",
+      "name": "Create an event2",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4xur0jqM0P7W2Yfg",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "db24a515-b6b3-47dc-8dd5-14c229eee61f",
+              "leftValue": "={{ $('Limpiar Reply').item.json.priorityScore }}",
+              "rightValue": 8,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2144,
+        -432
+      ],
+      "id": "07edd0b8-1a19-4031-af7c-8dd32e858acb",
+      "name": "Priority Score > 8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "db24a515-b6b3-47dc-8dd5-14c229eee61f",
+              "leftValue": "={{ $json.priorityScore }}",
+              "rightValue": 8,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2144,
+        -176
+      ],
+      "id": "1031880c-7f81-4bec-9bb6-75db20fa7fab",
+      "name": "Priority_Score > 8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a448e89a-c783-4fe0-9854-d1052312d4a6",
+              "leftValue": "={{ $('Limpiar Reply').item.json.isEvent }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3040,
+        -272
+      ],
+      "id": "fad27549-c598-4a00-aacd-c98a6d6872e2",
+      "name": "Is Event_"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1WByvVa86vwE0OsS_f_WUGldmqDSF2X8WXc-D1343wDU/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "N8N Historial",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1WByvVa86vwE0OsS_f_WUGldmqDSF2X8WXc-D1343wDU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "suggestedHeader",
+              "displayName": "suggestedHeader",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isNewsletter",
+              "displayName": "isNewsletter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "needsReply",
+              "displayName": "needsReply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "replySubject",
+              "displayName": "replySubject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "suggestedReply",
+              "displayName": "suggestedReply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priorityScore",
+              "displayName": "priorityScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priorityReason",
+              "displayName": "priorityReason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isEvent",
+              "displayName": "isEvent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "eventDetails",
+              "displayName": "eventDetails",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emailId",
+              "displayName": "emailId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        -176
+      ],
+      "id": "7231262c-eb6e-4629-8aed-da9465384abb",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "frWUoza5v8bo3EG4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "Newsletter",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "4138d959-8fb2-48b2-a568-a567c05522bb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Newsletter"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ee640ba7-55c3-4828-b4b1-2d66e402c9e7",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "Personal",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Personal"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b0750f07-5410-478c-8646-c1f01bd966ea",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "Updates",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Updates"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1472,
+        -192
+      ],
+      "id": "f9447d49-b849-4218-a785-9e384412a13c",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.emailId }}",
+        "labelIds": [
+          "Label_8090909408229751836"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1696,
+        32
+      ],
+      "id": "ea653f44-6e08-4f80-9aa2-0c79428fe96a",
+      "name": "Ruta updates",
+      "webhookId": "31b0ff22-1055-47a7-a746-7bc28ba2930f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        32
+      ],
+      "id": "778195d1-28ba-433c-9122-75ca6063a983",
+      "name": "Marcar updates leída",
+      "webhookId": "403a500c-d0e2-46fc-a3cc-d7b6bd76e807",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "90DSmzU8Anh26yR4",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Resumir con Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Reply": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumir con Gemini": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruta Newsletter": {
+      "main": [
+        [
+          {
+            "node": "Marcar newsletter leída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruta personal": {
+      "main": [
+        [
+          {
+            "node": "Marcar personal leído",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar newsletter leída": {
+      "main": [
+        [
+          {
+            "node": "Priority Score > 8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar personal leído": {
+      "main": [
+        [
+          {
+            "node": "Priority_Score > 8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Personal": {
+      "main": [
+        [
+          {
+            "node": "Needs Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a draft": {
+      "main": [
+        [
+          {
+            "node": "Is Event_",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Reply": {
+      "main": [
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Event": {
+      "main": [
+        [
+          {
+            "node": "Create an event1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event1": {
+      "main": [
+        []
+      ]
+    },
+    "Priority Score > 8": {
+      "main": [
+        [
+          {
+            "node": "Notificar Newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Priority_Score > 8": {
+      "main": [
+        [
+          {
+            "node": "Notificar Personal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Event_": {
+      "main": [
+        [
+          {
+            "node": "Create an event2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Ruta Newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ruta personal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ruta updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruta updates": {
+      "main": [
+        [
+          {
+            "node": "Marcar updates leída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4eb61cfbe3aaa7fc806f125d065539c4d717563b87a59e8f79521b39187fc599"
+  }
+}

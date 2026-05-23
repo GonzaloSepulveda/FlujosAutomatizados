@@ -1,0 +1,305 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://proxy.scrapeops.io/v1/",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_key",
+              "value": "7cb829d1-0510-411a-af63-c71e3e407366"
+            },
+            {
+              "name": "url",
+              "value": "https://www.pccomponentes.com/corsair-vengeance-ddr5-6000mhz-32-gb-2x16gb-cl36-memoria-dual-amd-expo-e-intel-xmp"
+            },
+            {
+              "name": "render_js",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bf4945b2-7c57-4bbe-b262-9243f7223d71",
+      "name": "HTTP Request - ScrapeOps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1696,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "ba695d5d-ab3a-4950-8b92-371c79e33730",
+      "name": "Schedule Trigger1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1920,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "precio_meta",
+              "cssSelector": "#pdp-price-current-integer"
+            },
+            {
+              "key": "nombre_producto",
+              "cssSelector": "meta[property='og:title']",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "url_canonica",
+              "cssSelector": "meta[property='og:url']",
+              "returnValue": "attribute",
+              "attribute": "content"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fd64cfcc-4ea9-416d-b013-a49ec3d0b00f",
+      "name": "HTML Extract - Meta Tags1",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        -1472,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "field-precio-numero",
+              "name": "precio_numero",
+              "value": "={{ parseFloat($json.precio_meta.replace(',', '.')) }}",
+              "type": "number"
+            },
+            {
+              "id": "field-nombre",
+              "name": "nombre_producto",
+              "value": "={{ $json.nombre_producto ? $json.nombre_producto.trim() : 'Corsair Vengeance DDR5 6000MHz 32GB' }}",
+              "type": "string"
+            },
+            {
+              "id": "field-precio-objetivo",
+              "name": "precio_objetivo",
+              "value": 500,
+              "type": "number"
+            },
+            {
+              "id": "field-url",
+              "name": "url_producto",
+              "value": "https://www.pccomponentes.com/corsair-vengeance-ddr5-6000mhz-32-gb-2x16gb-cl36-memoria-dual-amd-expo-e-intel-xmp",
+              "type": "string"
+            },
+            {
+              "id": "field-precio-raw",
+              "name": "precio_raw",
+              "value": "={{ $json.precio_meta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6b9d22e7-0153-4bb6-8f42-7515456cb357",
+      "name": "Edit Fields - Limpiar y Preparar1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1248,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-precio-valido",
+              "leftValue": "={{ $json.precio_numero }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "condition-precio-chollo",
+              "leftValue": "={{ $json.precio_numero }}",
+              "rightValue": "={{ $json.precio_objetivo }}",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "001c764c-0369-471a-9bee-6bcf3967ed61",
+      "name": "IF - ¿Es Chollo?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1153755766105313280",
+          "mode": "list",
+          "cachedResultName": "Macklan",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1495789439538958337",
+          "mode": "list",
+          "cachedResultName": "pc-componentes",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280/1495789439538958337"
+        },
+        "content": "=🚨 **¡ALERTA DE PRECIO EN PCCOMPONENTES!** 🚨\n\n🖥️ **Corsair Vengeance DDR5 6000MHz (2x16GB)**\n💸 **Precio actual:** {{ $json.precio_numero }} €\n\n🛒 **[Ir a la tienda](https://www.pccomponentes.com/corsair-vengeance-ddr5-6000mhz-32-gb-2x16gb-cl36-memoria-dual-amd-expo-e-intel-xmp)** ",
+        "options": {}
+      },
+      "id": "9873ca05-bfbe-4e80-800b-06c456773374",
+      "name": "Discord - Enviar Alerta1",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        944
+      ],
+      "webhookId": "68791119-a42b-488c-a9f1-ff8cbb4cb29c",
+      "credentials": {
+        "discordBotApi": {
+          "id": "0yoLEqaN0ndRdUYl",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "field-log",
+              "name": "log_mensaje",
+              "value": "={{ 'Sin chollo. Precio actual: ' + $json.precio_numero + '€ | Objetivo: ' + $json.precio_objetivo + '€ | ' + $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d174957d-78c8-4798-87d9-84488a3ac262",
+      "name": "No es Chollo - Log1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -800,
+        1136
+      ]
+    }
+  ],
+  "connections": {
+    "HTTP Request - ScrapeOps": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Meta Tags1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - ScrapeOps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Meta Tags1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields - Limpiar y Preparar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields - Limpiar y Preparar1": {
+      "main": [
+        [
+          {
+            "node": "IF - ¿Es Chollo?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - ¿Es Chollo?1": {
+      "main": [
+        [
+          {
+            "node": "Discord - Enviar Alerta1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No es Chollo - Log1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4eb61cfbe3aaa7fc806f125d065539c4d717563b87a59e8f79521b39187fc599"
+  }
+}

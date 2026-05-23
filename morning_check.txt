@@ -1,0 +1,495 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "topgonzalosepulveda@gmail.com",
+          "mode": "list",
+          "cachedResultName": "topgonzalosepulveda@gmail.com"
+        },
+        "limit": 10,
+        "timeMin": "={{ $now.startOf('day') }}",
+        "timeMax": "={{ $now.endOf('day') }}",
+        "options": {}
+      },
+      "id": "f5079c59-fadf-4d6c-86fe-1c6c228c1129",
+      "name": "Get Today's Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [
+        976,
+        416
+      ],
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4xur0jqM0P7W2Yfg",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('config').first().json.rssUrl }}",
+        "options": {}
+      },
+      "id": "13d3d2e1-a3d6-4514-9583-1d2ab1b6c89b",
+      "name": "Get Top News from RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "position": [
+        976,
+        608
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "briefingMessage",
+              "type": "string",
+              "value": "=**📅 Resumen Matutino Diario - {{ new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }}**\n\n*📆 Agenda de hoy*\n{{ $('Get Today\\'s Calendar Events').all().length > 0 ? $('Get Today\\'s Calendar Events').all().map(event => '• ' + event.json.summary + ' - ' + new Date(event.json.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })).join('\\n') : 'No hay eventos para hoy' }}\n\n*🌤️ El Tiempo*\n• {{ $('Req tiempo').first().json.current_condition[0].weatherDesc[0].value }} / Temperatura: {{ $('Req tiempo').first().json.current_condition[0].temp_C }}°C\n\n*📰 Titulares principales*\n{{ $('Get Top News from RSS').all().length > 0 ? $('Get Top News from RSS').all().slice(0, 2).map(article => '• [' + article.json.title + '](<' + article.json.link + '>)').join('\\n') : 'No hay noticias destacadas' }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "e2345e57-562c-422c-8fee-987c67e6e04c",
+      "name": "Format Briefing Message",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1424,
+        416
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1153755766105313280",
+          "mode": "list",
+          "cachedResultName": "Macklan",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1488827667317915761",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280/1488827667317915761"
+        },
+        "content": "={{ $('Format Briefing Message').item.json.briefingMessage }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        240
+      ],
+      "id": "b60abf9c-6086-452f-9b08-d30e945e7760",
+      "name": "Send a message",
+      "webhookId": "e0989483-d2ee-409d-a3fa-e0c86ae62734",
+      "credentials": {
+        "discordBotApi": {
+          "id": "0yoLEqaN0ndRdUYl",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "3de1a661-f701-4a3f-a3f7-ff436d1252b4",
+      "name": "Trigger morning",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        528,
+        416
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-5",
+              "name": "rssUrl",
+              "type": "string",
+              "value": "https://news.google.com/rss?hl=es&gl=ES&ceid=ES:es"
+            },
+            {
+              "id": "id-6",
+              "name": "weatherApiUrl",
+              "type": "string",
+              "value": "https://wttr.in/madrid?format=j1"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "aff69db1-b44b-424c-9c28-6ba04a91bb35",
+      "name": "config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        752,
+        416
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "url": "={{ $('config').first().json.weatherApiUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1f712b59-c8aa-4fd1-bb25-7c21f5566efa",
+      "name": "Req tiempo",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        976,
+        224
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "45c0dfab-7c8b-418b-9aa3-bd45aabfacea",
+      "name": "esperar data",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1648,
+        416
+      ],
+      "id": "bb31b204-fd11-4004-a7e7-e9d10297367a",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "guildId": {
+          "__rl": true,
+          "value": "1153755766105313280",
+          "mode": "list",
+          "cachedResultName": "Macklan",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1488827667317915761",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280/1488827667317915761"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        416
+      ],
+      "id": "db840047-29bc-4395-ae81-8271a0f6ba8e",
+      "name": "Get many messages",
+      "webhookId": "51841ac2-f53c-47c7-825d-553374a1b1b2",
+      "alwaysOutputData": true,
+      "credentials": {
+        "discordBotApi": {
+          "id": "0yoLEqaN0ndRdUYl",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "deleteMessage",
+        "guildId": {
+          "__rl": true,
+          "value": "1153755766105313280",
+          "mode": "list",
+          "cachedResultName": "Macklan",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1488827667317915761",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280/1488827667317915761"
+        },
+        "messageId": "={{ $json.id || \"\" }}"
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        432
+      ],
+      "id": "4c906042-0c5e-4dc6-a5bc-b5420940fe6f",
+      "name": "Delete a message",
+      "webhookId": "ba1a642b-448f-4b4a-b56b-3b51db854c14",
+      "alwaysOutputData": true,
+      "credentials": {
+        "discordBotApi": {
+          "id": "0yoLEqaN0ndRdUYl",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dc2bd7f2-2d3e-47b0-8ed3-82ec39109d3e",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2112,
+        416
+      ],
+      "id": "859c0640-f5d3-4ac0-8262-7bb338223e60",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1153755766105313280",
+          "mode": "list",
+          "cachedResultName": "Macklan",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1488827667317915761",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://discord.com/channels/1153755766105313280/1488827667317915761"
+        },
+        "content": "={{ $('Format Briefing Message').item.json.briefingMessage }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        432
+      ],
+      "id": "06a37dc2-2fc0-4b87-afe3-680f9e446f8a",
+      "name": "Send a message1",
+      "webhookId": "e0989483-d2ee-409d-a3fa-e0c86ae62734",
+      "credentials": {
+        "discordBotApi": {
+          "id": "0yoLEqaN0ndRdUYl",
+          "name": "Discord Bot account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Get Today's Calendar Events": {
+      "main": [
+        [
+          {
+            "node": "esperar data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Top News from RSS": {
+      "main": [
+        [
+          {
+            "node": "esperar data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Format Briefing Message": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        []
+      ]
+    },
+    "Trigger morning": {
+      "main": [
+        [
+          {
+            "node": "config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "config": {
+      "main": [
+        [
+          {
+            "node": "Get Today's Calendar Events",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Req tiempo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Top News from RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Req tiempo": {
+      "main": [
+        [
+          {
+            "node": "esperar data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "esperar data": {
+      "main": [
+        [
+          {
+            "node": "Format Briefing Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete a message": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4eb61cfbe3aaa7fc806f125d065539c4d717563b87a59e8f79521b39187fc599"
+  }
+}
